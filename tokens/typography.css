@@ -1,0 +1,35 @@
+/* ============================================================
+   TYPOGRAPHY — one typeface, used small and quiet.
+   Labels are uppercase with open tracking; captions sit in italic.
+   ============================================================ */
+:root {
+  --font-sans: 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+
+  /* Weights */
+  --fw-light:   300; /* @kind other */
+  --fw-regular: 400; /* @kind other */
+  --fw-medium:  500; /* @kind other */
+  --fw-semibold:600; /* @kind other */
+
+  /* Type sizes — restrained scale, nothing shouts */
+  --text-xs:   11px;   /* metadata, page count */
+  --text-sm:   13px;   /* nav, captions, labels */
+  --text-base: 15px;   /* body / contact prose */
+  --text-md:   19px;   /* lead paragraph */
+  --text-lg:   28px;   /* statement line */
+  --text-xl:   44px;   /* rare large moment */
+
+  /* Tracking */
+  --track-wide:   0.14em;  /* uppercase labels & nav */
+  --track-normal: 0.01em;
+  --track-tight: -0.01em;
+
+  /* Leading */
+  --leading-tight: 1.15;
+  --leading-snug:  1.35;
+  --leading-body:  1.6;
+
+  /* Semantic label preset (compose in components) */
+  --label-size: var(--text-sm);
+  --label-track: var(--track-wide);
+}

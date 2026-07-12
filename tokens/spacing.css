@@ -1,0 +1,43 @@
+/* ============================================================
+   SPACING & LAYOUT — generous, image-first. 4px base unit.
+   ============================================================ */
+:root {
+  --space-0:  0px;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+  --space-10: 128px;
+
+  /* Page frame — the quiet margin the whole site breathes inside */
+  --frame-x: 28px;          /* horizontal page padding (desktop) */
+  --frame-y: 22px;          /* top/bottom bar inset */
+  --frame-x-sm: 18px;       /* mobile */
+
+  /* Index grid */
+  --grid-gap: 40px;         /* gap between figures in the index */
+  --grid-min: 240px;        /* min column width before wrap */
+
+  /* Cover image */
+  --cover-max-h: 78vh;      /* max height of the single cover image */
+  --cover-max-w: 1100px;
+
+  /* Motion — slow, filmic; nothing bounces */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1); /* @kind other */
+  --dur-fast: 180ms; /* @kind other */
+  --dur:      340ms; /* @kind other */
+  --dur-slow: 620ms; /* @kind other */
+
+  /* Radius — essentially none; photographs sit square */
+  --radius: 0px;
+  --radius-soft: 2px;
+
+  /* Z layers */
+  --z-nav: 50; /* @kind other */
+  --z-lightbox: 100; /* @kind other */
+}

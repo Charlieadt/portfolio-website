@@ -1,0 +1,35 @@
+/* ============================================================
+   COLORS — a quiet near-monochrome so photographs carry all color.
+   Light is the default; a [data-theme="dark"] scope mirrors it.
+   ============================================================ */
+:root {
+  /* Base ramp — warm-neutral, never pure black/white */
+  --paper:        #fcfcfb;   /* page background */
+  --ink:          #131313;   /* primary text / wordmark */
+  --ink-2:        #6b6b68;   /* secondary text, captions */
+  --ink-3:        #9b9b97;   /* tertiary, metadata, hover-reveal */
+  --hairline:     #e7e6e2;   /* 1px dividers, image frames */
+  --hairline-2:   #f0efec;   /* faintest separation */
+  --backdrop:     rgba(19,19,19,0.92); /* lightbox scrim */
+
+  /* Semantic aliases — reference these in components */
+  --surface:        var(--paper);
+  --surface-sunken: #f4f3f0;
+  --text-strong:    var(--ink);
+  --text-body:      var(--ink-2);
+  --text-muted:     var(--ink-3);
+  --border:         var(--hairline);
+  --border-faint:   var(--hairline-2);
+  --overlay:        var(--backdrop);
+  --focus-ring:     var(--ink);
+}
+
+[data-theme="dark"] {
+  --paper:        #0d0d0c;
+  --ink:          #f3f2ee;
+  --ink-2:        #9a9a95;
+  --ink-3:        #6a6a65;
+  --hairline:     #242421;
+  --hairline-2:   #1a1a18;
+  --backdrop:     rgba(0,0,0,0.94);
+}

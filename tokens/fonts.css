@@ -1,0 +1,21 @@
+/* Webfonts — the system is set in Neue Haas Grotesk Text Pro, the neutral Swiss
+   grotesque matching the deliberately invisible typography of the reference
+   portfolio (giovannicorabi.com).
+
+   Both faces are uploaded and wired: ROMAN (Text Pro 55, the upright regular
+   used for nearly all on-screen text) and ITALIC (Text Pro 56, used for
+   captions). */
+@font-face {
+  font-family: 'Neue Haas Grotesk Text Pro';
+  src: url('../fonts/NeueHaasGroteskTextPro-Roman.ttf') format('truetype');
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Neue Haas Grotesk Text Pro';
+  src: url('../fonts/NeueHaasGroteskTextPro-Italic.woff2') format('woff2');
+  font-weight: 300 600;
+  font-style: italic;
+  font-display: swap;
+}
