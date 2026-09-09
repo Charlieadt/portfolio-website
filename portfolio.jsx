@@ -9,7 +9,7 @@
    Photographs are user-droppable <image-slot>s; the name, captions
    and footer lines are inline-editable and persist to localStorage.
    ============================================================ */
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useLayoutEffect, useRef, useCallback } = React;
 
 /* ---- persistence helpers ---------------------------------- */
 const LS = {
@@ -23,29 +23,69 @@ const LS = {
 /* ============================================================
    Charlie's photographs, in display order.
    ---> POUR AJOUTER / RETIRER UNE PHOTO :
-   1. Dépose ton fichier .jpg dans le dossier  images/
+   1. Dépose ton fichier .jpg dans le dossier  img/ (2000px max, ~400 Ko)
    2. Ajoute (ou enlève) son nom dans la liste ci-dessous.
    L'ordre de la liste = l'ordre d'affichage.
    ============================================================ */
 const PHOTOS = [
-  'images/01.jpg',
-  'images/02.jpg',
-  'images/03.jpg',
-  'images/04.jpg',
-  'images/05.jpg',
-  'images/06.jpg',
-  'images/07.jpg',
-  'images/08.jpg',
-  'images/09.jpg',
-  'images/10.jpg',
-  'images/11.jpg',
-  'images/12.jpg',
-  'images/13.jpg',
-  'images/14.jpg',
-  'images/15.jpg',
+  'img/01.jpg',
+  'img/02.jpg',
+  'img/03.jpg',
+  'img/04.jpg',
+  'img/05.jpg',
+  'img/06.jpg',
+  'img/07.jpg',
+  'img/08.jpg',
+  'img/09.jpg',
+  'img/10.jpg',
+  'img/11.jpg',
+  'img/12.jpg',
+  'img/13.jpg',
+  'img/14.jpg',
+  'img/15.jpg',
+  'img/16.jpg',
+  'img/17.jpg',
+  'img/18.jpg',
+  'img/19.jpg',
+  'img/20.jpg',
+  'img/21.jpg',
+  'img/22.jpg',
+  'img/23.jpg',
+  'img/24.jpg',
+  'img/25.jpg',
+  'img/26.jpg',
+  'img/27.jpg',
+  'img/28.jpg',
+  'img/29.jpg',
+  'img/30.jpg',
+  'img/31.jpg',
+  'img/32.jpg',
+  'img/33.jpg',
+  'img/34.jpg',
+  'img/35.jpg',
+  'img/36.jpg',
+  'img/37.jpg',
+  'img/38.jpg',
+  'img/39.jpg',
+  'img/40.jpg',
+  'img/41.jpg',
+  'img/42.jpg',
+  'img/43.jpg',
+  'img/44.jpg',
+  'img/45.jpg',
 ];
-const PHOTO_IDS = PHOTOS;
-const DEFAULT_CAPTIONS = Array.from({ length: PHOTOS.length }, () => '');
+/* Ordre aléatoire re-tiré à chaque chargement de la page. */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const SHUFFLED = shuffle(PHOTOS);
+const PHOTO_IDS = SHUFFLED;
+const DEFAULT_CAPTIONS = Array.from({ length: SHUFFLED.length }, () => '');
 const AUTOPLAY_MS = 700;
 
 /* ---- inline-editable text --------------------------------- */
@@ -179,8 +219,8 @@ function IndexGrid({ ids, captions, setCaption, openAt }) {
       <div style={indexStyles.grid}>
         {ids.map((id, i) => (
           <figure key={id} style={{ ...indexStyles.fig, marginTop: (STAGGER[i % STAGGER.length]) + 'px' }}>
-            <div style={indexStyles.frame} onClick={() => openAt(i)}>
-              <img src={id} alt="" draggable={false} loading="lazy" style={indexStyles.img} />
+            <div style={indexStyles.frame} onClick={(e) => openAt(i, e.currentTarget.firstChild.getBoundingClientRect())}>
+              <img data-lb-idx={i} src={id} alt="" draggable={false} loading="lazy" decoding="async" fetchPriority={i < 4 ? 'high' : 'low'} style={indexStyles.img} />
             </div>
           </figure>
         ))}
@@ -189,59 +229,109 @@ function IndexGrid({ ids, captions, setCaption, openAt }) {
   );
 }
 
-/* ---- lightbox (Evan-style: light, centred, minimal chrome) ---- */
+/* ---- lightbox --------------------------------------------- */
+/* Opens FROM the grid thumbnail (FLIP), navigates by cursor half. */
+const EASE = 'cubic-bezier(.16,1,.3,1)';
+const CUR = (d) => 'url("data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">' +
+  '<circle cx="17" cy="17" r="16" fill="rgba(19,19,19,.06)"/>' +
+  '<path d="' + (d === -1 ? 'M20 10 L13 17 L20 24' : 'M14 10 L21 17 L14 24') +
+  '" fill="none" stroke="#131313" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+) + '") 17 17, pointer';
+
+/* Where the full image lands: contain-fit inside the safe area. */
+function targetRect(aspect) {
+  const maxW = window.innerWidth * 0.80;
+  const maxH = window.innerHeight * 0.86;
+  let w = maxW, h = w / aspect;
+  if (h > maxH) { h = maxH; w = h * aspect; }
+  return { x: (window.innerWidth - w) / 2, y: (window.innerHeight - h) / 2, w, h };
+}
+
 const lbStyles = {
   scrim: { position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(252,252,251,0.97)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: '6vh 9vw', cursor: 'zoom-out',
-    animation: 'lb-fade var(--dur) var(--ease)' },
-  img: { maxWidth: '100%', maxHeight: '88vh', objectFit: 'contain', display: 'block',
-    cursor: 'default', boxShadow: '0 24px 64px -28px rgba(19,19,19,0.45)' },
-  icon: { position: 'fixed', zIndex: 101, background: 'none', border: 0, padding: 8,
-    cursor: 'pointer', color: 'var(--ink)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', lineHeight: 0 },
+    transition: 'opacity 200ms linear' },
+  close: { position: 'fixed', zIndex: 102, background: 'none', border: 0, padding: 8,
+    cursor: 'pointer', color: 'var(--ink)', display: 'flex', lineHeight: 0,
+    transition: 'opacity 200ms linear' },
+  zone: { position: 'fixed', top: 0, bottom: 0, width: '50%', zIndex: 101 },
 };
-function Chevron({ dir }) {
-  const d = dir === 'left' ? 'M15 5 L8 12 L15 19' : 'M9 5 L16 12 L9 19';
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d={d}></path>
-    </svg>
-  );
-}
-function Lightbox({ ids, index, setIndex, onClose }) {
+
+function Lightbox({ ids, index, setIndex, onClose, origin }) {
+  const imgRef = useRef(null);
+  const [ready, setReady] = useState(false);   // FLIP settled → chrome fades in
+  const [closing, setClosing] = useState(false);
+  const aspect = origin && origin.height ? origin.width / origin.height : 1.5;
   const step = useCallback((d) => setIndex((i) => (i + d + ids.length) % ids.length), [ids.length, setIndex]);
+
+  /* Current rect of the grid thumbnail for a given index, if it is still in the DOM. */
+  const gridRect = useCallback((i) => {
+    const el = document.querySelector('[data-lb-idx="' + i + '"]');
+    return el ? el.getBoundingClientRect() : null;
+  }, []);
+
+  /* FLIP in: render at final rect, transform back onto the thumbnail, release. */
+  useLayoutEffect(() => {
+    const el = imgRef.current;
+    if (!el || !origin) { setReady(true); return; }
+    const t = targetRect(aspect);
+    const dx = origin.left - t.x, dy = origin.top - t.y, sc = origin.width / t.w;
+    el.style.transition = 'none';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')';
+    const id = requestAnimationFrame(() => {
+      el.style.transition = 'transform 440ms ' + EASE;
+      el.style.transform = 'none';
+      setReady(true);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  /* FLIP out: fly back to whichever thumbnail is now current. */
+  const close = useCallback(() => {
+    const el = imgRef.current;
+    const r = gridRect(index);
+    if (!el || !r) { onClose(); return; }
+    const t = targetRect(aspect);
+    setClosing(true);
+    el.style.transition = 'transform 380ms ' + EASE + ', opacity 380ms linear';
+    el.style.transform = 'translate(' + (r.left - t.x) + 'px,' + (r.top - t.y) + 'px) scale(' + (r.width / t.w) + ')';
+    setTimeout(onClose, 360);
+  }, [index, aspect, gridRect, onClose]);
+
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') close();
       if (e.key === 'ArrowRight') step(1);
       if (e.key === 'ArrowLeft') step(-1);
     };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [step, onClose]);
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [step, close]);
+
+  const t = targetRect(aspect);
+  const chrome = ready && !closing ? 1 : 0;
+
   return (
-    <div style={lbStyles.scrim} onClick={onClose}>
-      <button type="button" aria-label="Close" onClick={onClose}
-        style={{ ...lbStyles.icon, top: 'var(--frame-y)', right: 'var(--frame-x)' }}>
+    <>
+      <div style={{ ...lbStyles.scrim, opacity: closing ? 0 : 1 }}></div>
+      <img ref={imgRef} src={ids[index]} alt="" draggable={false}
+        style={{ position: 'fixed', zIndex: 101, left: t.x, top: t.y, width: t.w, height: t.h,
+          objectFit: 'contain', transformOrigin: 'top left', display: 'block',
+          opacity: closing ? 0.001 : 1,
+          boxShadow: '0 24px 64px -28px rgba(19,19,19,0.45)' }} />
+      <div style={{ ...lbStyles.zone, left: 0, cursor: CUR(-1) }} onClick={() => step(-1)}></div>
+      <div style={{ ...lbStyles.zone, right: 0, cursor: CUR(1) }} onClick={() => step(1)}></div>
+      <button type="button" aria-label="Close" onClick={close}
+        style={{ ...lbStyles.close, top: 'var(--frame-y)', right: 'var(--frame-x)', opacity: chrome }}>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.4" strokeLinecap="round">
           <circle cx="12" cy="12" r="10.4"></circle>
           <path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"></path>
         </svg>
       </button>
-      <button type="button" aria-label="Previous" onClick={(e) => { e.stopPropagation(); step(-1); }}
-        style={{ ...lbStyles.icon, left: 'calc(var(--frame-x) - 4px)', top: '50%', transform: 'translateY(-50%)' }}>
-        <Chevron dir="left" />
-      </button>
-      <button type="button" aria-label="Next" onClick={(e) => { e.stopPropagation(); step(1); }}
-        style={{ ...lbStyles.icon, right: 'calc(var(--frame-x) - 4px)', top: '50%', transform: 'translateY(-50%)' }}>
-        <Chevron dir="right" />
-      </button>
-      <img key={ids[index]} src={ids[index]} alt="" draggable={false}
-        onClick={(e) => e.stopPropagation()} style={lbStyles.img} />
-    </div>
+    </>
   );
 }
 
@@ -249,7 +339,7 @@ function Lightbox({ ids, index, setIndex, onClose }) {
 function App() {
   const [view, setView] = useState('cover');           // cover | index
   const [coverIndex, setCoverIndex] = useState(0);
-  const [lb, setLb] = useState({ open: false, i: 0 });
+  const [lb, setLb] = useState({ open: false, i: 0, rect: null });
   const [name, setName] = useState(() => LS.get('charlie.name', 'Charlie Andreota'));
   const [captions, setCaptions] = useState(() => LS.get('charlie.captions', DEFAULT_CAPTIONS));
   const [info, setInfo] = useState(() => LS.get('charlie.info', {
@@ -263,11 +353,19 @@ function App() {
   /* Preload + decode every photograph up front so cover swaps appear
      instantly instead of painting progressively top-to-bottom. */
   useEffect(() => {
-    PHOTOS.forEach((src) => { const im = new Image(); im.decoding = 'async'; im.src = src; });
+    let stop = false, i = 0;
+    const next = () => {
+      if (stop || i >= PHOTOS.length) return;
+      const im = new Image(); im.decoding = 'async';
+      im.onload = im.onerror = () => { i++; next(); };
+      im.src = PHOTOS[i];
+    };
+    next();
+    return () => { stop = true; };
   }, []);
 
   const setCaption = (i, t) => setCaptions((c) => { const n = c.slice(); n[i] = t; return n; });
-  const go = (v) => { setLb({ open: false, i: 0 }); setView(v); };
+  const go = (v) => { setLb({ open: false, i: 0, rect: null }); setView(v); };
 
   return (
     <>
@@ -278,13 +376,14 @@ function App() {
       )}
       {view === 'index' && (
         <IndexGrid ids={PHOTO_IDS} captions={captions} setCaption={setCaption}
-          openAt={(i) => setLb({ open: true, i })} />
+          openAt={(i, rect) => setLb({ open: true, i, rect })} />
       )}
       <Footer info={info} setInfo={setInfo} />
       {lb.open && (
         <Lightbox ids={PHOTO_IDS} captions={captions} index={lb.i}
           setIndex={(updater) => setLb((s) => ({ ...s, i: typeof updater === 'function' ? updater(s.i) : updater }))}
-          onClose={() => setLb({ open: false, i: 0 })} />
+          origin={lb.rect}
+          onClose={() => setLb({ open: false, i: 0, rect: null })} />
       )}
     </>
   );
