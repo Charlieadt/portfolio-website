@@ -242,7 +242,8 @@ function Lightbox({ ids, index, setIndex, onClose, origin }) {
   const imgRef = useRef(null);
   const [ready, setReady] = useState(false);   // FLIP settled → chrome fades in
   const [closing, setClosing] = useState(false);
-  const aspect = origin && origin.height ? origin.width / origin.height : 1.5;
+  const initialAspect = origin && origin.height ? origin.width / origin.height : 1.5;
+  const [aspect, setAspect] = useState(initialAspect);
   const step = useCallback((d) => setIndex((i) => (i + d + ids.length) % ids.length), [ids.length, setIndex]);
 
   /* Current rect of the grid thumbnail for a given index, if it is still in the DOM. */
@@ -250,6 +251,15 @@ function Lightbox({ ids, index, setIndex, onClose, origin }) {
     const el = document.querySelector('[data-lb-idx="' + i + '"]');
     return el ? el.getBoundingClientRect() : null;
   }, []);
+
+  /* The frame must match the CURRENT photo, not the one first clicked. */
+  useLayoutEffect(() => {
+    const el = document.querySelector('[data-lb-idx="' + index + '"]');
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.height) setAspect(r.width / r.height);
+    }
+  }, [index]);
 
   /* FLIP in: render at final rect, transform back onto the thumbnail, release. */
   useLayoutEffect(() => {
@@ -298,6 +308,7 @@ function Lightbox({ ids, index, setIndex, onClose, origin }) {
     <>
       <div style={{ ...lbStyles.scrim, opacity: closing ? 0 : 1 }}></div>
       <img ref={imgRef} src={ids[index]} alt="" draggable={false}
+        onLoad={(e) => { const n = e.target; if (n.naturalHeight) setAspect(n.naturalWidth / n.naturalHeight); }}
         style={{ position: 'fixed', zIndex: 101, left: t.x, top: t.y, width: t.w, height: t.h,
           objectFit: 'contain', transformOrigin: 'top left', display: 'block',
           opacity: closing ? 0.001 : 1,
