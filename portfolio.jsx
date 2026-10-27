@@ -21,41 +21,9 @@ const LS = {
 };
 
 /* ============================================================
-   Charlie's photographs, in display order.
-   ---> POUR AJOUTER / RETIRER UNE PHOTO :
-   1. Dépose ton fichier .jpg dans le dossier  img/ (2000px max, ~400 Ko)
-   2. Ajoute (ou enlève) son nom dans la liste ci-dessous.
-   L'ordre de la liste = l'ordre d'affichage.
+   La liste des photos vit dans  photos.json  — gérée depuis
+   la page admin.html (glisser-déposer, réordonner, supprimer).
    ============================================================ */
-const PHOTOS = [
-  'part1/img/02.jpg',
-  'part1/img/03.jpg',
-  'part1/img/04.jpg',
-  'part1/img/05.jpg',
-  'part1/img/07.jpg',
-  'part1/img/08.jpg',
-  'part1/img/09.jpg',
-  'part1/img/10.jpg',
-  'part1/img/11.jpg',
-  'part1/img/12.jpg',
-  'part3/img/17.jpg',
-  'part3/img/31.jpg',
-  'part3/img/32.jpg',
-  'part3/img/33.jpg',
-  'part3/img/34.jpg',
-  'part3/img/35.jpg',
-  'part3/img/36.jpg',
-  'part3/img/37.jpg',
-  'part3/img/38.jpg',
-  'part3/img/39.jpg',
-  'part3/img/40.jpg',
-  'part3/img/41.jpg',
-  'part3/img/42.jpg',
-  'part3/img/43.jpg',
-  'part3/img/44.jpg',
-  'part3/img/45.jpg',
-];
-/* Ordre aléatoire re-tiré à chaque chargement de la page. */
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -64,9 +32,6 @@ function shuffle(arr) {
   }
   return a;
 }
-const SHUFFLED = shuffle(PHOTOS);
-const PHOTO_IDS = SHUFFLED;
-const DEFAULT_CAPTIONS = Array.from({ length: SHUFFLED.length }, () => '');
 const AUTOPLAY_MS = 700;
 
 /* ---- inline-editable text --------------------------------- */
@@ -329,11 +294,18 @@ function Lightbox({ ids, index, setIndex, onClose, origin }) {
 
 /* ---- app -------------------------------------------------- */
 function App() {
+  const [photos, setPhotos] = useState(null);          // shuffled once loaded
+  useEffect(() => {
+    fetch('photos.json?v=' + Date.now())
+      .then((r) => r.json())
+      .then((list) => setPhotos(shuffle(list)))
+      .catch(() => setPhotos([]));
+  }, []);
   const [view, setView] = useState('cover');           // cover | index
   const [coverIndex, setCoverIndex] = useState(0);
   const [lb, setLb] = useState({ open: false, i: 0, rect: null });
   const [name, setName] = useState(() => LS.get('charlie.name', 'Charlie Andreota'));
-  const [captions, setCaptions] = useState(() => LS.get('charlie.captions', DEFAULT_CAPTIONS));
+  const [captions, setCaptions] = useState(() => LS.get('charlie.captions', []));
   const [info, setInfo] = useState(() => LS.get('charlie.info', {
     email: 'hello@charlieandreota.com', social: '@charlieant',
   }));
@@ -345,20 +317,23 @@ function App() {
   /* Preload + decode every photograph up front so cover swaps appear
      instantly instead of painting progressively top-to-bottom. */
   useEffect(() => {
+    if (!photos) return;
     let stop = false, i = 0;
     const next = () => {
-      if (stop || i >= PHOTOS.length) return;
+      if (stop || i >= photos.length) return;
       const im = new Image(); im.decoding = 'async';
       im.onload = im.onerror = () => { i++; next(); };
-      im.src = PHOTOS[i];
+      im.src = photos[i];
     };
     next();
     return () => { stop = true; };
-  }, []);
+  }, [photos]);
 
   const setCaption = (i, t) => setCaptions((c) => { const n = c.slice(); n[i] = t; return n; });
   const go = (v) => { setLb({ open: false, i: 0, rect: null }); setView(v); };
 
+  if (!photos) return null;
+  const PHOTO_IDS = photos;
   return (
     <>
       <Wordmark name={name} onName={setName} go={go} />

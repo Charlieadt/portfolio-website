@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Photos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Neue Haas Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;background:#fcfcfb;color:#131313;min-height:100vh;padding:48px clamp(20px,5vw,72px) 120px}
+h1{font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px}
+.sub{font-size:13px;color:#8a8a86;margin-bottom:36px}
+a{color:#131313}
+button{font-family:inherit;font-size:13px;cursor:pointer;background:#131313;color:#fcfcfb;border:0;padding:10px 18px;letter-spacing:.06em}
+button.ghost{background:none;color:#131313;border:1px solid #d8d6d1}
+button:disabled{opacity:.4;cursor:default}
+input[type=password],input[type=text]{font-family:inherit;font-size:13px;padding:10px 12px;border:1px solid #d8d6d1;background:#fff;width:min(420px,100%)}
+.setup{max-width:560px;display:flex;flex-direction:column;gap:14px}
+.setup ol{padding-left:18px;font-size:13px;line-height:1.7;color:#55554f}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fcfcfb;border-top:1px solid #e8e6e1;padding:14px clamp(20px,5vw,72px);display:flex;gap:12px;align-items:center;z-index:10}
+.bar .st{font-size:13px;color:#8a8a86;flex:1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.cell{position:relative;aspect-ratio:1;background:#f1efeb;cursor:grab;user-select:none}
+.cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.cell.dragging{opacity:.3}
+.cell.over{outline:2px solid #131313;outline-offset:2px}
+.cell.del img{opacity:.25;filter:grayscale(1)}
+.cell .x{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(252,252,251,.9);color:#131313;border:0;padding:0;font-size:14px;line-height:26px;text-align:center}
+.cell.del .x{background:#131313;color:#fcfcfb}
+.cell .new{position:absolute;left:6px;top:6px;font-size:10px;letter-spacing:.1em;background:#131313;color:#fcfcfb;padding:3px 6px}
+.drop{border:1px dashed #c9c6bf;padding:28px;text-align:center;font-size:13px;color:#8a8a86;margin:0 0 28px;cursor:pointer}
+.drop.on{border-color:#131313;color:#131313}
+.hint{font-size:12px;color:#b0aea8;margin-top:28px;line-height:1.7}
+</style></head>
+<body>
+<h1>Photos — charlieandreota.com</h1>
+<div class="sub">Glisse pour réordonner · ✕ pour supprimer · dépose des fichiers pour ajouter · puis <b>Publier</b>.</div>
+<div id="app"></div>
+<script>
+const OWNER='Charlieadt', REPO='portfolio-website', BRANCH='main';
+const API='https://api.github.com/repos/'+OWNER+'/'+REPO;
+const RAW='https://raw.githubusercontent.com/'+OWNER+'/'+REPO+'/'+BRANCH+'/';
+let token=localStorage.getItem('charlie.gh.token')||'';
+let photos=[];        // {path, blobUrl?, file? , del:false, isNew:false}
+let shaMap={};        // path -> sha (for deletions)
+let jsonSha=null;
+const app=document.getElementById('app');
+const h=(t,a={},...kids)=>{const e=document.createElement(t);for(const k in a){if(k.startsWith('on'))e.addEventListener(k.slice(2),a[k]);else if(k==='html')e.innerHTML=a[k];else e.setAttribute(k,a[k]);}for(const k of kids)e.append(k);return e;};
+const gh=(path,opt={})=>fetch(API+path,{...opt,headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json',...(opt.headers||{})}}).then(async r=>{if(!r.ok)throw new Error(r.status+' '+(await r.text()).slice(0,200));return r.json()});
+
+function renderSetup(msg){
+  app.replaceChildren(h('div',{class:'setup'},
+    msg?h('div',{style:'color:#b3261e;font-size:13px'},msg):'',
+    h('ol',{},
+      h('li',{html:'Va sur <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">github.com → Settings → Fine-grained tokens → Generate</a>'}),
+      h('li',{html:'Repository access : <b>Only select repositories</b> → <b>'+REPO+'</b>'}),
+      h('li',{html:'Permissions → Repository → <b>Contents : Read and write</b>'}),
+      h('li',{html:'Génère, copie le token et colle-le ici (il reste dans TON navigateur, nulle part ailleurs)'})),
+    h('input',{type:'password',id:'tok',placeholder:'github_pat_…'}),
+    h('button',{onclick:()=>{token=document.getElementById('tok').value.trim();if(!token)return;localStorage.setItem('charlie.gh.token',token);load();}},'Connecter')));
+}
+
+async function load(){
+  app.replaceChildren(h('div',{class:'sub'},'Chargement…'));
+  try{
+    const tree=await gh('/git/trees/'+BRANCH+'?recursive=1');
+    shaMap={};tree.tree.forEach(t=>{if(t.type==='blob')shaMap[t.path]=t.sha;});
+    const j=await gh('/contents/photos.json?ref='+BRANCH);
+    jsonSha=j.sha;
+    const list=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
+    photos=list.map(p=>({path:p,del:false,isNew:false}));
+    render();
+  }catch(e){
+    if((e.message||'').startsWith('401')||(e.message||'').startsWith('403')){localStorage.removeItem('charlie.gh.token');renderSetup('Token refusé — regénère-le et réessaie.');}
+    else app.replaceChildren(h('div',{class:'sub'},'Erreur : '+e.message));
+  }
+}
+
+let dragIdx=null;
+function render(){
+  const grid=h('div',{class:'grid'});
+  photos.forEach((p,i)=>{
+    const cell=h('div',{class:'cell'+(p.del?' del':''),draggable:'true'},
+      h('img',{src:p.blobUrl||RAW+p.path,loading:'lazy'}),
+      h('button',{class:'x',title:p.del?'Restaurer':'Supprimer',onclick:()=>{p.del=!p.del;render();}},p.del?'↺':'✕'));
+    if(p.isNew)cell.append(h('span',{class:'new'},'NOUVEAU'));
+    cell.addEventListener('dragstart',()=>{dragIdx=i;cell.classList.add('dragging');});
+    cell.addEventListener('dragend',()=>{dragIdx=null;render();});
+    cell.addEventListener('dragover',e=>{e.preventDefault();cell.classList.add('over');});
+    cell.addEventListener('dragleave',()=>cell.classList.remove('over'));
+    cell.addEventListener('drop',e=>{e.preventDefault();if(dragIdx===null||dragIdx===i)return;const[m]=photos.splice(dragIdx,1);photos.splice(i,0,m);render();});
+    grid.append(cell);
+  });
+  const drop=h('div',{class:'drop'},'Dépose tes nouvelles photos ici (ou clique) — redimensionnées et compressées automatiquement');
+  const fi=h('input',{type:'file',accept:'image/*',multiple:'',style:'display:none'});
+  drop.onclick=()=>fi.click();
+  fi.onchange=()=>addFiles([...fi.files]);
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('on');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('on'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('on');addFiles([...e.dataTransfer.files]);});
+  const nDel=photos.filter(p=>p.del).length,nNew=photos.filter(p=>p.isNew).length;
+  const bar=h('div',{class:'bar'},
+    h('div',{class:'st',id:'status'},photos.filter(p=>!p.del).length+' photos'+(nNew?' · '+nNew+' à ajouter':'')+(nDel?' · '+nDel+' à supprimer':'')),
+    h('button',{class:'ghost',onclick:load},'Annuler tout'),
+    h('button',{id:'pub',onclick:publish},'Publier'));
+  app.replaceChildren(drop,grid,h('div',{class:'hint'},'Publier envoie les changements sur GitHub — le site se met à jour tout seul en ~30 secondes. Rafraîchis charlieandreota.com après.'),bar);
+}
+
+async function addFiles(files){
+  for(const f of files){
+    if(!/^image\//.test(f.type))continue;
+    const url=URL.createObjectURL(f);
+    const im=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=url;});
+    const sc=Math.min(1,2000/Math.max(im.width,im.height));
+    const c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);
+    const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.82));
+    URL.revokeObjectURL(url);
+    const path='img/p'+Date.now()+Math.floor(Math.random()*1000)+'.jpg';
+    photos.push({path,blob,blobUrl:URL.createObjectURL(blob),del:false,isNew:true});
+  }
+  render();
+}
+
+const b64=blob=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(blob);});
+async function publish(){
+  const btn=document.getElementById('pub'),st=document.getElementById('status');
+  btn.disabled=true;
+  try{
+    const adds=photos.filter(p=>p.isNew&&!p.del), dels=photos.filter(p=>p.del&&!p.isNew);
+    let done=0,total=adds.length+dels.length+1;
+    for(const p of adds){
+      st.textContent='Envoi '+(++done)+'/'+total+'…';
+      await gh('/contents/'+p.path,{method:'PUT',body:JSON.stringify({message:'ajout photo',branch:BRANCH,content:await b64(p.blob)})});
+    }
+    for(const p of dels){
+      st.textContent='Suppression '+(++done)+'/'+total+'…';
+      if(shaMap[p.path])await gh('/contents/'+p.path,{method:'DELETE',body:JSON.stringify({message:'suppression photo',branch:BRANCH,sha:shaMap[p.path]})});
+    }
+    st.textContent='Mise à jour de la liste…';
+    const list=photos.filter(p=>!p.del).map(p=>p.path);
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(list,null,2))));
+    await gh('/contents/photos.json',{method:'PUT',body:JSON.stringify({message:'ordre des photos',branch:BRANCH,content,sha:jsonSha})});
+    st.textContent='Publié ✓ — le site se met à jour (~30 s)';
+    setTimeout(load,1500);
+  }catch(e){st.textContent='Erreur : '+e.message;btn.disabled=false;}
+}
+
+token?load():renderSetup();
+</script>
+</body></html>
